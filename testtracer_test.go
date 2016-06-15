@@ -44,23 +44,20 @@ func (n testSpan) Tracer() Tracer                                        { retur
 
 // StartSpan belongs to the Tracer interface.
 func (n testTracer) StartSpan(operationName string, opts ...StartSpanOption) Span {
-	sso := StartSpanOptions{
-		OperationName: operationName,
-	}
+	sso := StartSpanOptions{}
 	for _, o := range opts {
 		o(&sso)
 	}
-	return n.StartSpanWithOptions(sso)
+	return n.startSpanWithOptions(operationName, sso)
 }
 
-// StartSpanWithOptions belongs to the Tracer interface.
-func (n testTracer) StartSpanWithOptions(opts StartSpanOptions) Span {
+func (n testTracer) startSpanWithOptions(name string, opts StartSpanOptions) Span {
 	fakeID := nextFakeID()
 	if len(opts.CausalReferences) > 0 {
 		fakeID = opts.CausalReferences[0].SpanContext.(testSpanContext).FakeID
 	}
 	return testSpan{
-		OperationName: opts.OperationName,
+		OperationName: name,
 		spanContext: testSpanContext{
 			HasParent: len(opts.CausalReferences) > 0,
 			FakeID:    fakeID,

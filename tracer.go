@@ -67,10 +67,23 @@ type Tracer interface {
 	// used by the `net.Context` package (see
 	// https://godoc.org/golang.org/x/net/context#WithValue).
 	//
-	// Example usage (sans error handling):
+	// Example usage:
+	//
 	//
 	//     carrier := opentracing.HTTPHeaderTextMapCarrier(httpReq.Header)
 	//     spanContext, err := tracer.Extract(opentracing.TextMap, carrier)
+	//     startSpanOptions := make([]opentracing.StartSpanOption, 0, 1)
+	//
+	//     // ... assuming the ultimate goal here is to resume the trace with a
+	//     // server-side Span:
+	//     if err == nil {
+	//         startSpanOptions = append(
+	//             startSpanOptions,
+	//             opentracing.Reference(opentracing.RefRPCClient, spanContext))
+	//     }
+	//     span := tracer.StartSpan(
+	//         rpcMethodName, opentracing.Reference(opentracing.RefRPCClient, spanContext))
+	//
 	//
 	// NOTE: All opentracing.Tracer implementations MUST support all
 	// BuiltinFormats.
@@ -93,11 +106,6 @@ type Tracer interface {
 // start timestamp, specify a parent Span, and make sure that Tags are
 // available at Span initialization time.
 type StartSpanOptions struct {
-	// OperationName may be empty (and set later via Span.SetOperationName)
-	//
-	// XXX: get rid of this... StartSpan() requires an opname anyway.
-	OperationName string
-
 	// Zero or more causal references to other Spans/SpanContexts. If empty,
 	// start a "root" Span (i.e., start a new trace).
 	CausalReferences []CausalReference
@@ -114,6 +122,11 @@ type StartSpanOptions struct {
 	Tags map[string]interface{}
 }
 
+// CausalReferenceType is an enum type describing different sorts of
+// relationships between spans. If Span A refers to Span B, the
+// CausalReferenceType describes Span B from Span A's perspective. For example,
+// RefBlockedParent means that Span B is Span A's parent, and that it's blocked
+// on Span A's finish.
 type CausalReferenceType int
 
 const (
@@ -140,19 +153,18 @@ const (
 	// https://github.com/opentracing/opentracing.github.io/issues/28
 )
 
+// CausalReference pairs a reference type and a referent SpanContext. See the
+// CausalReferenceType documentation.
 type CausalReference struct {
 	RefType CausalReferenceType
 	SpanContext
 }
 
+// StartSpanOption instances (zero or more) may be passed to Tracer.StartSpan.
 type StartSpanOption func(*StartSpanOptions)
 
-func OperationName(opName string) StartSpanOption {
-	return func(opts *StartSpanOptions) {
-		opts.OperationName = opName
-	}
-}
-
+// Reference returns a StartSpan() option that adds a reference from the
+// newly-started span to a referent Span (parent or otherwise).
 func Reference(t CausalReferenceType, sc SpanContext) StartSpanOption {
 	return func(opts *StartSpanOptions) {
 		opts.CausalReferences = append(opts.CausalReferences, CausalReference{
@@ -162,12 +174,16 @@ func Reference(t CausalReferenceType, sc SpanContext) StartSpanOption {
 	}
 }
 
+// StartTime returns a StartSpan() option that sets an explicit start time for
+// the newly started span.
 func StartTime(t time.Time) StartSpanOption {
 	return func(opts *StartSpanOptions) {
 		opts.StartTime = t
 	}
 }
 
+// StartTags returns a StartSpan() option that sets an initial set of
+// Span.SetTag tags for the newly started span.
 func StartTags(t map[string]interface{}) StartSpanOption {
 	return func(opts *StartSpanOptions) {
 		opts.Tags = t

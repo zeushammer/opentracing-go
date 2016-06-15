@@ -15,9 +15,9 @@ var (
 	// Tracer.Extract() is not recognized by the Tracer implementation.
 	ErrUnsupportedFormat = errors.New("opentracing: Unknown or unsupported Inject/Extract format")
 
-	// ErrContextNotFound occurs when the `carrier` passed to Tracer.Extract()
-	// is valid and uncorrupted but has insufficient information to extract a
-	// SpanContext.
+	// ErrSpanContextNotFound occurs when the `carrier` passed to
+	// Tracer.Extract() is valid and uncorrupted but has insufficient
+	// information to extract a SpanContext.
 	ErrSpanContextNotFound = errors.New("opentracing: SpanContext not found in Extract carrier")
 
 	// ErrInvalidSpanContext errors occur when Tracer.Inject() is asked to
@@ -30,8 +30,8 @@ var (
 	// given.
 	ErrInvalidCarrier = errors.New("opentracing: Invalid Inject/Extract carrier")
 
-	// ErrTraceCorrupted occurs when the `carrier` passed to Tracer.Extract() is
-	// of the expected type but is corrupted.
+	// ErrSpanContextCorrupted occurs when the `carrier` passed to
+	// Tracer.Extract() is of the expected type but is corrupted.
 	ErrSpanContextCorrupted = errors.New("opentracing: SpanContext data corrupted in Extract carrier")
 )
 

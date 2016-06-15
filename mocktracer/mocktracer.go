@@ -52,18 +52,11 @@ func (t *MockTracer) Reset() {
 
 // StartSpan belongs to the Tracer interface.
 func (t *MockTracer) StartSpan(operationName string, opts ...opentracing.StartSpanOption) opentracing.Span {
-	sso := opentracing.StartSpanOptions{
-		OperationName: operationName,
-	}
+	sso := opentracing.StartSpanOptions{}
 	for _, o := range opts {
 		o(&sso)
 	}
-	return newMockSpan(t, sso)
-}
-
-// StartSpanWithOptions belongs to the Tracer interface.
-func (t *MockTracer) StartSpanWithOptions(opts opentracing.StartSpanOptions) opentracing.Span {
-	return newMockSpan(t, opts)
+	return newMockSpan(t, operationName, sso)
 }
 
 const mockTextMapIdsPrefix = "mockpfx-ids-"
@@ -137,7 +130,7 @@ func (s *MockSpanContext) BaggageItem(key string) string {
 	return s.Baggage[key]
 }
 
-func newMockSpan(t *MockTracer, opts opentracing.StartSpanOptions) *MockSpan {
+func newMockSpan(t *MockTracer, name string, opts opentracing.StartSpanOptions) *MockSpan {
 	tags := opts.Tags
 	if tags == nil {
 		tags = map[string]interface{}{}
@@ -152,7 +145,7 @@ func newMockSpan(t *MockTracer, opts opentracing.StartSpanOptions) *MockSpan {
 	}
 	return &MockSpan{
 		ParentID:      parentID,
-		OperationName: opts.OperationName,
+		OperationName: name,
 		StartTime:     startTime,
 		Tags:          tags,
 		Logs:          []opentracing.LogData{},
