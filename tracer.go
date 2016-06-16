@@ -2,15 +2,12 @@ package opentracing
 
 import "time"
 
-// Tracer is a simple, thin interface for Span creation.
-//
-// A straightforward implementation is available via the
-// `opentracing/basictracer-go` package's `standardtracer.New()'.
+// Tracer is a simple, thin interface for Span creation and SpanMetadata
+// propagation.
 type Tracer interface {
-	// Create, start, and return a new Span with the given `operationName`, all
-	// without specifying a parent Span that can be used to incorporate the
-	// newly-returned Span into an existing trace. (I.e., the returned Span is
-	// the "root" of its trace).
+	// Create, start, and return a new Span with the given `operationName` and
+	// incorporate the given StartSpanOptions. (See StartSpanOption for all of
+	// the options on that front)
 	//
 	// Examples:
 	//
@@ -18,7 +15,9 @@ type Tracer interface {
 	//
 	//     sp := tracer.StartSpan("GetFeed")
 	//
-	//     sp := tracer.StartSpanWithOptions(opentracing.SpanOptions{
+	//     sp := tracer.StartSpan(
+	//         "GetFeed",
+	//         opentracing.RefParent(parentSpan.Baggage()))
 	//         OperationName: "LoggedHTTPRequest",
 	//         Tags: opentracing.Tags{"user_agent", loggedReq.UserAgent},
 	//         StartTime: loggedReq.Timestamp,
@@ -26,7 +25,7 @@ type Tracer interface {
 	//
 	StartSpan(operationName string, opts ...StartSpanOption) Span
 
-	// Inject() takes the `sc` SpanContext instance and represents it for
+	// Inject() takes the `sm` SpanMetadata instance and represents it for
 	// propagation within `carrier`. The actual type of `carrier` depends on
 	// the value of `format`.
 	//
@@ -34,14 +33,14 @@ type Tracer interface {
 	// and each has an expected carrier type.
 	//
 	// Other packages may declare their own `format` values, much like the keys
-	// used by the `net.Context` package (see
+	// used by `context.Context` (see
 	// https://godoc.org/golang.org/x/net/context#WithValue).
 	//
 	// Example usage (sans error handling):
 	//
 	//     carrier := opentracing.HTTPHeaderTextMapCarrier(httpReq.Header)
 	//     tracer.Inject(
-	//         span.SpanContext(),
+	//         span.Metadata(),
 	//         opentracing.TextMap,
 	//         carrier)
 	//
@@ -56,22 +55,22 @@ type Tracer interface {
 	// fails anyway.
 	//
 	// See Tracer.Join().
-	Inject(sc SpanContext, format interface{}, carrier interface{}) error
+	Inject(sm SpanMetadata, format interface{}, carrier interface{}) error
 
-	// Extract() returns a SpanContext instance given `format` and `carrier`.
+	// Extract() returns a SpanMetadata instance given `format` and `carrier`.
 	//
 	// OpenTracing defines a common set of `format` values (see BuiltinFormat),
 	// and each has an expected carrier type.
 	//
 	// Other packages may declare their own `format` values, much like the keys
-	// used by the `net.Context` package (see
+	// used by `context.Context` (see
 	// https://godoc.org/golang.org/x/net/context#WithValue).
 	//
 	// Example usage:
 	//
 	//
 	//     carrier := opentracing.HTTPHeaderTextMapCarrier(httpReq.Header)
-	//     spanContext, err := tracer.Extract(opentracing.TextMap, carrier)
+	//     spanMetadata, err := tracer.Extract(opentracing.TextMap, carrier)
 	//     startSpanOptions := make([]opentracing.StartSpanOption, 0, 1)
 	//
 	//     // ... assuming the ultimate goal here is to resume the trace with a
@@ -79,18 +78,18 @@ type Tracer interface {
 	//     if err == nil {
 	//         startSpanOptions = append(
 	//             startSpanOptions,
-	//             opentracing.Reference(opentracing.RefRPCClient, spanContext))
+	//             opentracing.Reference(opentracing.RefRPCClient, spanMetadata))
 	//     }
 	//     span := tracer.StartSpan(
-	//         rpcMethodName, opentracing.Reference(opentracing.RefRPCClient, spanContext))
+	//         rpcMethodName, opentracing.Reference(opentracing.RefRPCClient, spanMetadata))
 	//
 	//
 	// NOTE: All opentracing.Tracer implementations MUST support all
 	// BuiltinFormats.
 	//
 	// Return values:
-	//  - A successful Extract returns a SpanContext instance and a nil error
-	//  - If there was simply no SpanContext to extract in `carrier`, Extract()
+	//  - A successful Extract returns a SpanMetadata instance and a nil error
+	//  - If there was simply no SpanMetadata to extract in `carrier`, Extract()
 	//    returns (nil, opentracing.ErrTraceNotFound)
 	//  - If `format` is unsupported or unrecognized, Extract() returns (nil,
 	//    opentracing.ErrUnsupportedFormat)
@@ -99,14 +98,14 @@ type Tracer interface {
 	//    opentracing.ErrTraceCorrupted, or implementation-specific errors.
 	//
 	// See Tracer.Inject().
-	Extract(format interface{}, carrier interface{}) (SpanContext, error)
+	Extract(format interface{}, carrier interface{}) (SpanMetadata, error)
 }
 
 // StartSpanOptions allows Tracer.StartSpanWithOptions callers to override the
 // start timestamp, specify a parent Span, and make sure that Tags are
 // available at Span initialization time.
 type StartSpanOptions struct {
-	// Zero or more causal references to other Spans/SpanContexts. If empty,
+	// Zero or more causal references to other Spans/SpanMetadata. If empty,
 	// start a "root" Span (i.e., start a new trace).
 	CausalReferences []CausalReference
 
@@ -153,11 +152,11 @@ const (
 	// https://github.com/opentracing/opentracing.github.io/issues/28
 )
 
-// CausalReference pairs a reference type and a referent SpanContext. See the
+// CausalReference pairs a reference type and a referent SpanMetadata. See the
 // CausalReferenceType documentation.
 type CausalReference struct {
 	RefType CausalReferenceType
-	SpanContext
+	SpanMetadata
 }
 
 // StartSpanOption instances (zero or more) may be passed to Tracer.StartSpan.
@@ -165,11 +164,11 @@ type StartSpanOption func(*StartSpanOptions)
 
 // Reference returns a StartSpan() option that adds a reference from the
 // newly-started span to a referent Span (parent or otherwise).
-func Reference(t CausalReferenceType, sc SpanContext) StartSpanOption {
+func Reference(t CausalReferenceType, sm SpanMetadata) StartSpanOption {
 	return func(opts *StartSpanOptions) {
 		opts.CausalReferences = append(opts.CausalReferences, CausalReference{
-			RefType:     t,
-			SpanContext: sc,
+			RefType:      t,
+			SpanMetadata: sm,
 		})
 	}
 }

@@ -5,24 +5,24 @@ package opentracing
 type NoopTracer struct{}
 
 type noopSpan struct{}
-type noopSpanContext struct{}
+type noopSpanMetadata struct{}
 
 var (
-	defaultNoopSpanContext = noopSpanContext{}
-	defaultNoopSpan        = noopSpan{}
-	defaultNoopTracer      = NoopTracer{}
+	defaultNoopSpanMetadata = noopSpanMetadata{}
+	defaultNoopSpan         = noopSpan{}
+	defaultNoopTracer       = NoopTracer{}
 )
 
 const (
 	emptyString = ""
 )
 
-// noopSpanContext:
-func (n noopSpanContext) SetBaggageItem(key, val string) SpanContext { return n }
-func (n noopSpanContext) BaggageItem(key string) string              { return emptyString }
+// noopSpanMetadata:
+func (n noopSpanMetadata) SetBaggageItem(key, val string) SpanMetadata { return n }
+func (n noopSpanMetadata) BaggageItem(key string) string               { return emptyString }
 
 // noopSpan:
-func (n noopSpan) SpanContext() SpanContext                              { return defaultNoopSpanContext }
+func (n noopSpan) Metadata() SpanMetadata                                { return defaultNoopSpanMetadata }
 func (n noopSpan) SetTag(key string, value interface{}) Span             { return n }
 func (n noopSpan) Finish()                                               {}
 func (n noopSpan) FinishWithOptions(opts FinishOptions)                  {}
@@ -38,11 +38,11 @@ func (n NoopTracer) StartSpan(operationName string, opts ...StartSpanOption) Spa
 }
 
 // Inject belongs to the Tracer interface.
-func (n NoopTracer) Inject(sp SpanContext, format interface{}, carrier interface{}) error {
+func (n NoopTracer) Inject(sp SpanMetadata, format interface{}, carrier interface{}) error {
 	return nil
 }
 
 // Extract belongs to the Tracer interface.
-func (n NoopTracer) Extract(format interface{}, carrier interface{}) (SpanContext, error) {
-	return nil, ErrSpanContextNotFound
+func (n NoopTracer) Extract(format interface{}, carrier interface{}) (SpanMetadata, error) {
+	return nil, ErrSpanMetadataNotFound
 }

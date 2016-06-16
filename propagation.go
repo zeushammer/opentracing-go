@@ -15,24 +15,24 @@ var (
 	// Tracer.Extract() is not recognized by the Tracer implementation.
 	ErrUnsupportedFormat = errors.New("opentracing: Unknown or unsupported Inject/Extract format")
 
-	// ErrSpanContextNotFound occurs when the `carrier` passed to
+	// ErrSpanMetadataNotFound occurs when the `carrier` passed to
 	// Tracer.Extract() is valid and uncorrupted but has insufficient
-	// information to extract a SpanContext.
-	ErrSpanContextNotFound = errors.New("opentracing: SpanContext not found in Extract carrier")
+	// information to extract a SpanMetadata.
+	ErrSpanMetadataNotFound = errors.New("opentracing: SpanMetadata not found in Extract carrier")
 
-	// ErrInvalidSpanContext errors occur when Tracer.Inject() is asked to
-	// operate on a SpanContext which it is not prepared to handle (for
+	// ErrInvalidSpanMetadata errors occur when Tracer.Inject() is asked to
+	// operate on a SpanMetadata which it is not prepared to handle (for
 	// example, since it was created by a different tracer implementation).
-	ErrInvalidSpanContext = errors.New("opentracing: SpanContext type incompatible with tracer")
+	ErrInvalidSpanMetadata = errors.New("opentracing: SpanMetadata type incompatible with tracer")
 
 	// ErrInvalidCarrier errors occur when Tracer.Inject() or Tracer.Extract()
 	// implementations expect a different type of `carrier` than they are
 	// given.
 	ErrInvalidCarrier = errors.New("opentracing: Invalid Inject/Extract carrier")
 
-	// ErrSpanContextCorrupted occurs when the `carrier` passed to
+	// ErrSpanMetadataCorrupted occurs when the `carrier` passed to
 	// Tracer.Extract() is of the expected type but is corrupted.
-	ErrSpanContextCorrupted = errors.New("opentracing: SpanContext data corrupted in Extract carrier")
+	ErrSpanMetadataCorrupted = errors.New("opentracing: SpanMetadata data corrupted in Extract carrier")
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -45,14 +45,14 @@ var (
 type BuiltinFormat byte
 
 const (
-	// Binary encodes the SpanContext for propagation as opaque binary data.
+	// Binary encodes the SpanMetadata for propagation as opaque binary data.
 	//
 	// For Tracer.Inject(): the carrier must be an `io.Writer`.
 	//
 	// For Tracer.Join(): the carrier must be an `io.Reader`.
 	Binary BuiltinFormat = iota
 
-	// TextMap encodes the SpanContext as key:value pairs.
+	// TextMap encodes the SpanMetadata as key:value pairs.
 	//
 	// For Tracer.Inject(): the carrier must be a `TextMapWriter`.
 	//
@@ -74,7 +74,7 @@ const (
 )
 
 // TextMapWriter is the Inject() carrier for the TextMap builtin format. With
-// it, the caller can encode a SpanContext for propagation as entries in a
+// it, the caller can encode a SpanMetadata for propagation as entries in a
 // multimap of unicode strings.
 type TextMapWriter interface {
 	// Set a key:value pair to the carrier. Multiple calls to Set() for the
@@ -92,7 +92,7 @@ type TextMapWriter interface {
 }
 
 // TextMapReader is the Join() carrier for the TextMap builtin format. With it,
-// the caller can decode a propagated SpanContext as entries in a multimap of
+// the caller can decode a propagated SpanMetadata as entries in a multimap of
 // unicode strings.
 type TextMapReader interface {
 	// ForeachKey returns TextMap contents via repeated calls to the `handler`

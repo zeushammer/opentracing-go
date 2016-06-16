@@ -18,21 +18,21 @@ func nextFakeID() int {
 	return fakeIDSource
 }
 
-type testSpanContext struct {
+type testSpanMetadata struct {
 	HasParent bool
 	FakeID    int
 }
 
-func (n testSpanContext) SetBaggageItem(key, val string) SpanContext { return n }
-func (n testSpanContext) BaggageItem(key string) string              { return "" }
+func (n testSpanMetadata) SetBaggageItem(key, val string) SpanMetadata { return n }
+func (n testSpanMetadata) BaggageItem(key string) string               { return "" }
 
 type testSpan struct {
-	spanContext   testSpanContext
+	spanMetadata  testSpanMetadata
 	OperationName string
 }
 
 // testSpan:
-func (n testSpan) SpanContext() SpanContext                              { return n.spanContext }
+func (n testSpan) Metadata() SpanMetadata                                { return n.spanMetadata }
 func (n testSpan) SetTag(key string, value interface{}) Span             { return n }
 func (n testSpan) Finish()                                               {}
 func (n testSpan) FinishWithOptions(opts FinishOptions)                  {}
@@ -54,11 +54,11 @@ func (n testTracer) StartSpan(operationName string, opts ...StartSpanOption) Spa
 func (n testTracer) startSpanWithOptions(name string, opts StartSpanOptions) Span {
 	fakeID := nextFakeID()
 	if len(opts.CausalReferences) > 0 {
-		fakeID = opts.CausalReferences[0].SpanContext.(testSpanContext).FakeID
+		fakeID = opts.CausalReferences[0].SpanMetadata.(testSpanMetadata).FakeID
 	}
 	return testSpan{
 		OperationName: name,
-		spanContext: testSpanContext{
+		spanMetadata: testSpanMetadata{
 			HasParent: len(opts.CausalReferences) > 0,
 			FakeID:    fakeID,
 		},
@@ -66,23 +66,23 @@ func (n testTracer) startSpanWithOptions(name string, opts StartSpanOptions) Spa
 }
 
 // Inject belongs to the Tracer interface.
-func (n testTracer) Inject(sp SpanContext, format interface{}, carrier interface{}) error {
-	spanContext := sp.(testSpanContext)
+func (n testTracer) Inject(sp SpanMetadata, format interface{}, carrier interface{}) error {
+	spanMetadata := sp.(testSpanMetadata)
 	switch format {
 	case TextMap:
-		carrier.(TextMapWriter).Set(testHTTPHeaderPrefix+"fakeid", strconv.Itoa(spanContext.FakeID))
+		carrier.(TextMapWriter).Set(testHTTPHeaderPrefix+"fakeid", strconv.Itoa(spanMetadata.FakeID))
 		return nil
 	}
 	return ErrUnsupportedFormat
 }
 
 // Extract belongs to the Tracer interface.
-func (n testTracer) Extract(format interface{}, carrier interface{}) (SpanContext, error) {
+func (n testTracer) Extract(format interface{}, carrier interface{}) (SpanMetadata, error) {
 	switch format {
 	case TextMap:
 		// Just for testing purposes... generally not a worthwhile thing to
 		// propagate.
-		sc := testSpanContext{}
+		sm := testSpanMetadata{}
 		err := carrier.(TextMapReader).ForeachKey(func(key, val string) error {
 			switch strings.ToLower(key) {
 			case testHTTPHeaderPrefix + "fakeid":
@@ -90,11 +90,11 @@ func (n testTracer) Extract(format interface{}, carrier interface{}) (SpanContex
 				if err != nil {
 					return err
 				}
-				sc.FakeID = i
+				sm.FakeID = i
 			}
 			return nil
 		})
-		return sc, err
+		return sm, err
 	}
-	return nil, ErrSpanContextNotFound
+	return nil, ErrSpanMetadataNotFound
 }

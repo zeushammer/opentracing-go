@@ -23,8 +23,8 @@ type MockTracer struct {
 	FinishedSpans []*MockSpan
 }
 
-// MockSpanContext is an opentracing.SpanContext implementation.
-type MockSpanContext struct {
+// MockSpanMetadata is an opentracing.SpanMetadata implementation.
+type MockSpanMetadata struct {
 	SpanID  int
 	Baggage map[string]string
 }
@@ -39,8 +39,8 @@ type MockSpan struct {
 	Tags          map[string]interface{}
 	Logs          []opentracing.LogData
 
-	tracer      *MockTracer
-	spanContext *MockSpanContext
+	tracer       *MockTracer
+	spanMetadata *MockSpanMetadata
 }
 
 // Reset clears the exported MockTracer.FinishedSpans field. Note that any
@@ -63,15 +63,15 @@ const mockTextMapIdsPrefix = "mockpfx-ids-"
 const mockTextMapBaggagePrefix = "mockpfx-baggage-"
 
 // Inject belongs to the Tracer interface.
-func (t *MockTracer) Inject(sc opentracing.SpanContext, format interface{}, carrier interface{}) error {
-	spanContext := sc.(*MockSpanContext)
+func (t *MockTracer) Inject(sm opentracing.SpanMetadata, format interface{}, carrier interface{}) error {
+	spanMetadata := sm.(*MockSpanMetadata)
 	switch format {
 	case opentracing.TextMap:
 		writer := carrier.(opentracing.TextMapWriter)
 		// Ids:
-		writer.Set(mockTextMapIdsPrefix+"spanid", strconv.Itoa(spanContext.SpanID))
+		writer.Set(mockTextMapIdsPrefix+"spanid", strconv.Itoa(spanMetadata.SpanID))
 		// Baggage:
-		for baggageKey, baggageVal := range spanContext.Baggage {
+		for baggageKey, baggageVal := range spanMetadata.Baggage {
 			writer.Set(mockTextMapBaggagePrefix+baggageKey, baggageVal)
 		}
 		return nil
@@ -80,10 +80,10 @@ func (t *MockTracer) Inject(sc opentracing.SpanContext, format interface{}, carr
 }
 
 // Extract belongs to the Tracer interface.
-func (t *MockTracer) Extract(format interface{}, carrier interface{}) (opentracing.SpanContext, error) {
+func (t *MockTracer) Extract(format interface{}, carrier interface{}) (opentracing.SpanMetadata, error) {
 	switch format {
 	case opentracing.TextMap:
-		rval := newMockSpanContext(0)
+		rval := newMockSpanMetadata(0)
 		err := carrier.(opentracing.TextMapReader).ForeachKey(func(key, val string) error {
 			lowerKey := strings.ToLower(key)
 			switch {
@@ -102,7 +102,7 @@ func (t *MockTracer) Extract(format interface{}, carrier interface{}) (opentraci
 		})
 		return rval, err
 	}
-	return nil, opentracing.ErrSpanContextNotFound
+	return nil, opentracing.ErrSpanMetadataNotFound
 }
 
 var mockIDSource = 1
@@ -112,21 +112,21 @@ func nextMockID() int {
 	return mockIDSource
 }
 
-func newMockSpanContext(spanID int) *MockSpanContext {
-	return &MockSpanContext{
+func newMockSpanMetadata(spanID int) *MockSpanMetadata {
+	return &MockSpanMetadata{
 		SpanID:  spanID,
 		Baggage: make(map[string]string),
 	}
 }
 
-// SetBaggageItem belongs to the SpanContext interface
-func (s *MockSpanContext) SetBaggageItem(key, val string) opentracing.SpanContext {
+// SetBaggageItem belongs to the SpanMetadata interface
+func (s *MockSpanMetadata) SetBaggageItem(key, val string) opentracing.SpanMetadata {
 	s.Baggage[key] = val
 	return s
 }
 
-// BaggageItem belongs to the SpanContext interface
-func (s *MockSpanContext) BaggageItem(key string) string {
+// BaggageItem belongs to the SpanMetadata interface
+func (s *MockSpanMetadata) BaggageItem(key string) string {
 	return s.Baggage[key]
 }
 
@@ -137,7 +137,7 @@ func newMockSpan(t *MockTracer, name string, opts opentracing.StartSpanOptions) 
 	}
 	parentID := int(0)
 	if len(opts.CausalReferences) > 0 {
-		parentID = opts.CausalReferences[0].SpanContext.(*MockSpanContext).SpanID
+		parentID = opts.CausalReferences[0].SpanMetadata.(*MockSpanMetadata).SpanID
 	}
 	startTime := opts.StartTime
 	if startTime.IsZero() {
@@ -150,14 +150,14 @@ func newMockSpan(t *MockTracer, name string, opts opentracing.StartSpanOptions) 
 		Tags:          tags,
 		Logs:          []opentracing.LogData{},
 
-		tracer:      t,
-		spanContext: newMockSpanContext(nextMockID()),
+		tracer:       t,
+		spanMetadata: newMockSpanMetadata(nextMockID()),
 	}
 }
 
-// SpanContext belongs to the Span interface
-func (s *MockSpan) SpanContext() opentracing.SpanContext {
-	return s.spanContext
+// Metadata belongs to the Span interface
+func (s *MockSpan) Metadata() opentracing.SpanMetadata {
+	return s.spanMetadata
 }
 
 // SetTag belongs to the Span interface

@@ -6,9 +6,10 @@ import (
 	"time"
 )
 
-// SpanContext represents Span state that should propagate to descendant Spans
-// and presumably across process boundaries.
-type SpanContext interface {
+// SpanMetadata represents Span meta-state (e.g., a <trace_id, span_id,
+// sampled> tuple) that should propagate to descendant Spans and presumably
+// across process boundaries.
+type SpanMetadata interface {
 	// SetBaggageItem sets a key:value pair on this Span that also
 	// propagates to future Span children.
 	//
@@ -36,7 +37,7 @@ type SpanContext interface {
 	// results in undefined behavior.
 	//
 	// Returns a reference to this Span for chaining, etc.
-	SetBaggageItem(restrictedKey, value string) SpanContext
+	SetBaggageItem(restrictedKey, value string) SpanMetadata
 
 	// Gets the value for a baggage item given its key. Returns the empty string
 	// if the value isn't found in this Span.
@@ -49,10 +50,10 @@ type SpanContext interface {
 //
 // Spans are created by the Tracer interface.
 type Span interface {
-	// Returns the SpanContext for this Span. Note that the return value of
-	// SpanContext() is still valid after a call to Span.Finish(), as is a call
-	// to Span.SpanContext() after a call to Span.Finish().
-	SpanContext() SpanContext
+	// Returns the SpanMetadata for this Span. Note that the return value of
+	// Metadata() is still valid after a call to Span.Finish(), as is a call to
+	// Span.Metadata() after a call to Span.Finish().
+	Metadata() SpanMetadata
 
 	// Sets or changes the operation name.
 	SetOperationName(operationName string) Span
@@ -60,11 +61,10 @@ type Span interface {
 	// Adds a tag to the span.
 	//
 	// Tag values can be of arbitrary types, however the treatment of complex
-	// types is dependent on the underlying tracing system implementation.
-	// It is expected that most tracing systems will handle primitive types
-	// like strings and numbers. If a tracing system cannot understand how
-	// to handle a particular value type, it may ignore the tag, but shall
-	// not panic.
+	// types is dependent on the underlying tracing system implementation.  It
+	// is expected that most tracing systems will handle primitive types like
+	// strings and numbers. If a tracing system cannot understand how to handle
+	// a particular value type, it may ignore the tag, but shall not panic.
 	//
 	// If there is a pre-existing tag set for `key`, it is overwritten.
 	SetTag(key string, value interface{}) Span
@@ -72,7 +72,7 @@ type Span interface {
 	// Sets the end timestamp and calls the `Recorder`s RecordSpan()
 	// internally.
 	//
-	// With the exception of calls to SpanContext() (which are always allowed),
+	// With the exception of calls to Metadata() (which are always allowed),
 	// Finish() must be the last call made to any span instance, and to do
 	// otherwise leads to undefined behavior.
 	Finish()
@@ -190,6 +190,6 @@ func CanonicalizeBaggageKey(key string) (string, bool) {
 func StartChildSpan(parent Span, operationName string) Span {
 	return parent.Tracer().StartSpan(
 		operationName,
-		Reference(RefBlockedParent, parent.SpanContext()),
+		Reference(RefBlockedParent, parent.Metadata()),
 	)
 }

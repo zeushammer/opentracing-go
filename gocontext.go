@@ -7,7 +7,7 @@ type contextKey struct{}
 var activeSpanKey = contextKey{}
 
 // ContextWithSpan returns a new `context.Context` that holds a reference to
-// the given `Span`'s `SpanContext`.
+// the given `Span`'s `SpanMetadata`.
 func ContextWithSpan(ctx context.Context, span Span) context.Context {
 	return context.WithValue(ctx, activeSpanKey, span)
 }
@@ -44,7 +44,7 @@ func StartSpanFromContext(ctx context.Context, operationName string) (Span, cont
 func startSpanFromContextWithTracer(ctx context.Context, operationName string, tracer Tracer) (Span, context.Context) {
 	opts := []StartSpanOption{}
 	if span := SpanFromContext(ctx); span != nil {
-		opts = append(opts, Reference(RefBlockedParent, span.SpanContext()))
+		opts = append(opts, Reference(RefBlockedParent, span.Metadata()))
 	}
 	span := tracer.StartSpan(
 		operationName,
