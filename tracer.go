@@ -190,6 +190,13 @@ func (r SpanReference) Apply(o *StartSpanOptions) {
 	o.References = append(o.References, r)
 }
 
+// IntraTrace returns true if the referent is in the same trace as the referee
+// (i.e., if the referee should adopt the referent's trace-scoped metadata,
+// like a `trace_id`).
+func (r ReferenceType) IntraTrace() bool {
+	return r <= RefFinishedBefore
+}
+
 // Point returns a StartSpanOption that describes a SpanReference (from the
 // Span that's about to be started to the `referent`).
 func (r ReferenceType) Point(referent SpanMetadata) SpanReference {
