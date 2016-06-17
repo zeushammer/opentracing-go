@@ -199,6 +199,8 @@ func (r ReferenceType) Point(referent SpanMetadata) SpanReference {
 	}
 }
 
+// StartTime is a StartSpanOption that sets an explicit start timestamp for the
+// new Span.
 type StartTime time.Time
 
 // Apply satisfies the StartSpanOption interface.

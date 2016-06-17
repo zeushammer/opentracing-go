@@ -1,14 +1,10 @@
 package opentracing
 
-import (
-	"regexp"
-	"strings"
-	"time"
-)
+import "time"
 
 // SpanMetadata represents Span meta-state (e.g., a <trace_id, span_id,
-// sampled> tuple) that should propagate to descendant Spans and presumably
-// across process boundaries.
+// sampled> tuple) that should propagate to descendant Spans and across process
+// boundaries.
 type SpanMetadata interface {
 	// SetBaggageItem sets a key:value pair on this Span that also
 	// propagates to future Span children.
@@ -18,25 +14,14 @@ type SpanMetadata interface {
 	// app can make it, transparently, all the way into the depths of a storage
 	// system), and with it some powerful costs: use this feature with care.
 	//
-	// IMPORTANT NOTE #1: SetBaggageItem() will only propagate trace
-	// baggage items to *future* children of the Span.
+	// IMPORTANT NOTE #1: SetBaggageItem() will only propagate baggage items to
+	// *future* causal descendants of the Span.
 	//
 	// IMPORTANT NOTE #2: Use this thoughtfully and with care. Every key and
 	// value is copied into every local *and remote* child of this Span, and
 	// that can add up to a lot of network and cpu overhead.
 	//
-	// IMPORTANT NOTE #3: Baggage item keys have a restricted format:
-	// implementations may wish to use them as HTTP header keys (or key
-	// suffixes), and of course HTTP headers are case insensitive.
-	//
-	// As such, `restrictedKey` MUST match the regular expression
-	// `(?i:[a-z0-9][-a-z0-9]*)` and is case-insensitive. That is, it must
-	// start with a letter or number, and the remaining characters must be
-	// letters, numbers, or hyphens. See CanonicalizeBaggageKey(). If
-	// `restrictedKey` does not meet these criteria, SetBaggageItem()
-	// results in undefined behavior.
-	//
-	// Returns a reference to this Span for chaining, etc.
+	// Returns a reference to this SpanMetadata for chaining, etc.
 	SetBaggageItem(restrictedKey, value string) SpanMetadata
 
 	// Gets the value for a baggage item given its key. Returns the empty string
@@ -50,27 +35,7 @@ type SpanMetadata interface {
 //
 // Spans are created by the Tracer interface.
 type Span interface {
-	// Returns the SpanMetadata for this Span. Note that the return value of
-	// Metadata() is still valid after a call to Span.Finish(), as is a call to
-	// Span.Metadata() after a call to Span.Finish().
-	Metadata() SpanMetadata
-
-	// Sets or changes the operation name.
-	SetOperationName(operationName string) Span
-
-	// Adds a tag to the span.
-	//
-	// Tag values can be of arbitrary types, however the treatment of complex
-	// types is dependent on the underlying tracing system implementation.  It
-	// is expected that most tracing systems will handle primitive types like
-	// strings and numbers. If a tracing system cannot understand how to handle
-	// a particular value type, it may ignore the tag, but shall not panic.
-	//
-	// If there is a pre-existing tag set for `key`, it is overwritten.
-	SetTag(key string, value interface{}) Span
-
-	// Sets the end timestamp and calls the `Recorder`s RecordSpan()
-	// internally.
+	// Sets the end timestamp and finalizes Span state.
 	//
 	// With the exception of calls to Metadata() (which are always allowed),
 	// Finish() must be the last call made to any span instance, and to do
@@ -79,6 +44,24 @@ type Span interface {
 	// FinishWithOptions is like Finish() but with explicit control over
 	// timestamps and log data.
 	FinishWithOptions(opts FinishOptions)
+
+	// Metadata() yields the SpanMetadata for this Span. Note that the return
+	// value of Metadata() is still valid after a call to Span.Finish(), as is
+	// a call to Span.Metadata() after a call to Span.Finish().
+	Metadata() SpanMetadata
+
+	// Sets or changes the operation name.
+	SetOperationName(operationName string) Span
+
+	// Adds a tag to the span.
+	//
+	// If there is a pre-existing tag set for `key`, it is overwritten.
+	//
+	// Tag values can be numeric types, strings, or bools. The behavior of
+	// other tag value types is undefined at the OpenTracing level. If a
+	// tracing system does not know how to handle a particular value type, it
+	// may ignore the tag, but shall not panic.
+	SetTag(key string, value interface{}) Span
 
 	// LogEvent() is equivalent to
 	//
@@ -101,8 +84,8 @@ type Span interface {
 	Tracer() Tracer
 }
 
-// LogData is data associated to a Span. Every LogData instance should specify
-// at least one of Event and/or Payload.
+// LogData is data associated with a Span. Every LogData instance should
+// specify at least one of Event and/or Payload.
 type LogData struct {
 	// The timestamp of the log record; if set to the default value (the unix
 	// epoch), implementations should use time.Now() implicitly.
@@ -155,27 +138,4 @@ type FinishOptions struct {
 	// If specified, the caller hands off ownership of BulkLogData at
 	// FinishWithOptions() invocation time.
 	BulkLogData []LogData
-}
-
-var regexBaggage = regexp.MustCompile("^(?i:[a-z0-9][-a-z0-9]*)$")
-
-// CanonicalizeBaggageKey returns the canonicalized version of baggage item
-// key `key`, and true if and only if the key was valid.
-//
-// It is more performant to use lowercase keys only.
-func CanonicalizeBaggageKey(key string) (string, bool) {
-	if !regexBaggage.MatchString(key) {
-		return "", false
-	}
-	return strings.ToLower(key), true
-}
-
-// StartChildSpan is a simple helper to start a child span given only its
-// parent (per StartSpanOptions.Parent) and an operation name per
-// Span.SetOperationName.
-func StartChildSpan(parent Span, operationName string) Span {
-	return parent.Tracer().StartSpan(
-		operationName,
-		RefBlockedParent.Point(parent.Metadata()),
-	)
 }

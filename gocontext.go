@@ -23,8 +23,8 @@ func SpanFromContext(ctx context.Context) Span {
 }
 
 // StartSpanFromContext starts and returns a Span with `operationName`, using
-// any Span found within `ctx` as a parent. If no such parent could be found,
-// StartSpanFromContext creates a root (parentless) Span.
+// any Span found within `ctx` as a RefBlockedParent. If no such parent could
+// be found, StartSpanFromContext creates a root (parentless) Span.
 //
 // The second return value is a context.Context object built around the
 // returned Span.
@@ -36,18 +36,15 @@ func SpanFromContext(ctx context.Context) Span {
 //        defer sp.Finish()
 //        ...
 //    }
-func StartSpanFromContext(ctx context.Context, operationName string) (Span, context.Context) {
-	return startSpanFromContextWithTracer(ctx, operationName, GlobalTracer())
+func StartSpanFromContext(ctx context.Context, operationName string, opts ...StartSpanOption) (Span, context.Context) {
+	return startSpanFromContextWithTracer(ctx, GlobalTracer(), operationName, opts...)
 }
 
 // startSpanFromContextWithTracer is factored out for testing purposes.
-func startSpanFromContextWithTracer(ctx context.Context, operationName string, tracer Tracer) (Span, context.Context) {
-	opts := []StartSpanOption{}
+func startSpanFromContextWithTracer(ctx context.Context, tracer Tracer, operationName string, opts ...StartSpanOption) (Span, context.Context) {
 	if span := SpanFromContext(ctx); span != nil {
 		opts = append(opts, RefBlockedParent.Point(span.Metadata()))
 	}
-	span := tracer.StartSpan(
-		operationName,
-		opts...)
+	span := tracer.StartSpan(operationName, opts...)
 	return span, ContextWithSpan(ctx, span)
 }

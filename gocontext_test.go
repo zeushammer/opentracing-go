@@ -34,7 +34,7 @@ func TestStartSpanFromContext(t *testing.T) {
 	{
 		parentSpan := &testSpan{}
 		parentCtx := ContextWithSpan(context.Background(), parentSpan)
-		childSpan, childCtx := startSpanFromContextWithTracer(parentCtx, "child", testTracer)
+		childSpan, childCtx := startSpanFromContextWithTracer(parentCtx, testTracer, "child")
 		if !childSpan.Metadata().(testSpanMetadata).HasParent {
 			t.Errorf("Failed to find parent: %v", childSpan)
 		}
@@ -46,7 +46,7 @@ func TestStartSpanFromContext(t *testing.T) {
 	// Test the case where there *is not* a Span in the Context.
 	{
 		emptyCtx := context.Background()
-		childSpan, childCtx := startSpanFromContextWithTracer(emptyCtx, "child", testTracer)
+		childSpan, childCtx := startSpanFromContextWithTracer(emptyCtx, testTracer, "child")
 		if childSpan.Metadata().(testSpanMetadata).HasParent {
 			t.Errorf("Should not have found parent: %v", childSpan)
 		}
