@@ -44,7 +44,7 @@ func StartSpanFromContext(ctx context.Context, operationName string) (Span, cont
 func startSpanFromContextWithTracer(ctx context.Context, operationName string, tracer Tracer) (Span, context.Context) {
 	opts := []StartSpanOption{}
 	if span := SpanFromContext(ctx); span != nil {
-		opts = append(opts, Reference(RefBlockedParent, span.Metadata()))
+		opts = append(opts, RefBlockedParent.Point(span.Metadata()))
 	}
 	span := tracer.StartSpan(
 		operationName,

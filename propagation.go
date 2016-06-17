@@ -40,7 +40,7 @@ var (
 ///////////////////////////////////////////////////////////////////////////////
 
 // BuiltinFormat is used to demarcate the values within package `opentracing`
-// that are intended for use with the Tracer.Inject() and Tracer.Join()
+// that are intended for use with the Tracer.Inject() and Tracer.Extract()
 // methods.
 type BuiltinFormat byte
 
@@ -49,14 +49,14 @@ const (
 	//
 	// For Tracer.Inject(): the carrier must be an `io.Writer`.
 	//
-	// For Tracer.Join(): the carrier must be an `io.Reader`.
+	// For Tracer.Extract(): the carrier must be an `io.Reader`.
 	Binary BuiltinFormat = iota
 
 	// TextMap encodes the SpanMetadata as key:value pairs.
 	//
 	// For Tracer.Inject(): the carrier must be a `TextMapWriter`.
 	//
-	// For Tracer.Join(): the carrier must be a `TextMapReader`.
+	// For Tracer.Extract(): the carrier must be a `TextMapReader`.
 	//
 	// See HTTPHeaderTextMapCarrier for an implementation of both TextMapWriter
 	// and TextMapReader that defers to an http.Header instance for storage.
@@ -65,10 +65,10 @@ const (
 	//    carrier := HTTPHeaderTextMapCarrier(httpReq.Header)
 	//    err := span.Tracer().Inject(span, TextMap, carrier)
 	//
-	// Or Join():
+	// Or Extract():
 	//
 	//    carrier := HTTPHeaderTextMapCarrier(httpReq.Header)
-	//    span, err := tracer.Join("opName", TextMap, carrier)
+	//    span, err := tracer.Extract("opName", TextMap, carrier)
 	//
 	TextMap
 )
@@ -91,7 +91,7 @@ type TextMapWriter interface {
 	Set(key, val string)
 }
 
-// TextMapReader is the Join() carrier for the TextMap builtin format. With it,
+// TextMapReader is the Extract() carrier for the TextMap builtin format. With it,
 // the caller can decode a propagated SpanMetadata as entries in a multimap of
 // unicode strings.
 type TextMapReader interface {

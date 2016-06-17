@@ -157,20 +157,6 @@ type FinishOptions struct {
 	BulkLogData []LogData
 }
 
-// Tags are a generic map from an arbitrary string key to an opaque value type.
-// The underlying tracing system is responsible for interpreting and
-// serializing the values.
-type Tags map[string]interface{}
-
-// Merge incorporates the keys and values from `other` into this `Tags`
-// instance, then returns same.
-func (t Tags) Merge(other Tags) Tags {
-	for k, v := range other {
-		t[k] = v
-	}
-	return t
-}
-
 var regexBaggage = regexp.MustCompile("^(?i:[a-z0-9][-a-z0-9]*)$")
 
 // CanonicalizeBaggageKey returns the canonicalized version of baggage item
@@ -190,6 +176,6 @@ func CanonicalizeBaggageKey(key string) (string, bool) {
 func StartChildSpan(parent Span, operationName string) Span {
 	return parent.Tracer().StartSpan(
 		operationName,
-		Reference(RefBlockedParent, parent.Metadata()),
+		RefBlockedParent.Point(parent.Metadata()),
 	)
 }

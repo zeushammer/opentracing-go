@@ -54,7 +54,7 @@ func (t *MockTracer) Reset() {
 func (t *MockTracer) StartSpan(operationName string, opts ...opentracing.StartSpanOption) opentracing.Span {
 	sso := opentracing.StartSpanOptions{}
 	for _, o := range opts {
-		o(&sso)
+		o.Apply(&sso)
 	}
 	return newMockSpan(t, operationName, sso)
 }
@@ -136,8 +136,8 @@ func newMockSpan(t *MockTracer, name string, opts opentracing.StartSpanOptions) 
 		tags = map[string]interface{}{}
 	}
 	parentID := int(0)
-	if len(opts.CausalReferences) > 0 {
-		parentID = opts.CausalReferences[0].SpanMetadata.(*MockSpanMetadata).SpanID
+	if len(opts.References) > 0 {
+		parentID = opts.References[0].Metadata.(*MockSpanMetadata).SpanID
 	}
 	startTime := opts.StartTime
 	if startTime.IsZero() {

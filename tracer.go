@@ -5,6 +5,7 @@ import "time"
 // Tracer is a simple, thin interface for Span creation and SpanMetadata
 // propagation.
 type Tracer interface {
+
 	// Create, start, and return a new Span with the given `operationName` and
 	// incorporate the given StartSpanOptions. (See StartSpanOption for all of
 	// the options on that front)
@@ -13,19 +14,27 @@ type Tracer interface {
 	//
 	//     var tracer opentracing.Tracer = ...
 	//
+	//     // The root-span case:
 	//     sp := tracer.StartSpan("GetFeed")
 	//
+	//     // The vanilla child span case:
 	//     sp := tracer.StartSpan(
 	//         "GetFeed",
-	//         opentracing.RefParent(parentSpan.Baggage()))
-	//         OperationName: "LoggedHTTPRequest",
-	//         Tags: opentracing.Tags{"user_agent", loggedReq.UserAgent},
-	//         StartTime: loggedReq.Timestamp,
-	//     })
+	//         opentracing.RefBlockedParent.Point(parentSpan.Metadata()))
+	//
+	//     // All the bells and whistles:
+	//     sp := tracer.StartSpan(
+	//         "GetFeed",
+	//         opentracing.RefBlockedParent.Point(parentSpan.Metadata()),
+	//         opentracing.Tags{
+	//             "user_agent": loggedReq.UserAgent,
+	//         },
+	//         opentracing.StartTime(loggedReq.Timestamp),
+	//     )
 	//
 	StartSpan(operationName string, opts ...StartSpanOption) Span
 
-	// Inject() takes the `sm` SpanMetadata instance and represents it for
+	// Inject() takes the `sm` SpanMetadata instance and injects it for
 	// propagation within `carrier`. The actual type of `carrier` depends on
 	// the value of `format`.
 	//
@@ -39,7 +48,7 @@ type Tracer interface {
 	// Example usage (sans error handling):
 	//
 	//     carrier := opentracing.HTTPHeaderTextMapCarrier(httpReq.Header)
-	//     tracer.Inject(
+	//     err := tracer.Inject(
 	//         span.Metadata(),
 	//         opentracing.TextMap,
 	//         carrier)
@@ -48,13 +57,13 @@ type Tracer interface {
 	// BuiltinFormats.
 	//
 	// Implementations may return opentracing.ErrUnsupportedFormat if `format`
-	// is or not supported by (or not known by) the implementation.
+	// is not supported by (or not known by) the implementation.
 	//
 	// Implementations may return opentracing.ErrInvalidCarrier or any other
 	// implementation-specific error if the format is supported but injection
 	// fails anyway.
 	//
-	// See Tracer.Join().
+	// See Tracer.Extract().
 	Inject(sm SpanMetadata, format interface{}, carrier interface{}) error
 
 	// Extract() returns a SpanMetadata instance given `format` and `carrier`.
@@ -105,9 +114,9 @@ type Tracer interface {
 // start timestamp, specify a parent Span, and make sure that Tags are
 // available at Span initialization time.
 type StartSpanOptions struct {
-	// Zero or more causal references to other Spans/SpanMetadata. If empty,
-	// start a "root" Span (i.e., start a new trace).
-	CausalReferences []CausalReference
+	// Zero or more causal references to other Spans (via their SpanMetadata).
+	// If empty, start a "root" Span (i.e., start a new trace).
+	References []SpanReference
 
 	// StartTime overrides the Span's start time, or implicitly becomes
 	// time.Now() if StartTime.IsZero().
@@ -121,70 +130,97 @@ type StartSpanOptions struct {
 	Tags map[string]interface{}
 }
 
-// CausalReferenceType is an enum type describing different sorts of
-// relationships between spans. If Span A refers to Span B, the
-// CausalReferenceType describes Span B from Span A's perspective. For example,
-// RefBlockedParent means that Span B is Span A's parent, and that it's blocked
-// on Span A's finish.
-type CausalReferenceType int
+// StartSpanOption instances (zero or more) may be passed to Tracer.StartSpan.
+type StartSpanOption interface {
+	Apply(*StartSpanOptions)
+}
+
+// ReferenceType is an enum type describing different categories of
+// relationships between two Spans. If Span-2 refers to Span-1, the
+// ReferenceType describes Span-1 from Span-2's perspective. For example,
+// RefBlockedParent means that Span-1 caused Span-2, and that it's blocked on
+// Span-2's finish.
+type ReferenceType int
 
 const (
-	// RefStartsBefore refers to a span which MUST start before the Span
-	// that's starting.
-	RefStartsBefore CausalReferenceType = iota
+	// RefBlockedParent refers to a "parent" Span that (a) caused the creation
+	// of the newly-started span, and (b) is blocked on the newly-started Span.
+	// See RefStartedBefore for the non-blocking version. Timing diagram:
+	//
+	//     [-Referent------------]
+	//               [-New Span-]
+	//
+	RefBlockedParent ReferenceType = iota
 
-	// RefBlockedOnFinish refers to a span which CAN NOT finish successfully
-	// until the Span that's starting has finished.
-	RefBlockedOnFinish
-
-	// RefFinishesBefore refers to a span which MUST finish before the Span
-	// that's starting.
-	RefFinishesBefore
-
-	// RefBlockedParent is the union of RefStartedBefore and RefBlockedOnFinish.
-	RefBlockedParent
-
-	// RefRPCClient is the special case of RefBlockedParent for the RPC client
-	// peer of an RPC server span.
+	// RefRPCClient is a special case of RefBlockedParent for the server side
+	// of RPCs to refer to the client side of RPCs. Timing diagram:
+	//
+	//     [-Remote Client Referent------]
+	//                [-New Server Span-]
+	//
 	RefRPCClient
 
-	// TODO: etc etc, per
-	// https://github.com/opentracing/opentracing.github.io/issues/28
+	// RefStartedBefore refers to a Span that merely started before the
+	// newly-started Span. This is the weakest of the ReferenceType causality
+	// assertions. Timing diagram:
+	//
+	//     [-Referent-]
+	//          [-New Span-]
+	//
+	RefStartedBefore
+
+	// RefFinishedBefore refers to a Span that finished (and started) before
+	// the newly-created Span. Timing diagram:
+	//
+	//     [-Referent-]
+	//                    [-New Span-]
+	//
+	RefFinishedBefore
 )
 
-// CausalReference pairs a reference type and a referent SpanMetadata. See the
-// CausalReferenceType documentation.
-type CausalReference struct {
-	RefType CausalReferenceType
-	SpanMetadata
+// SpanReference pairs a ReferenceType and a referent SpanMetadata. See the
+// ReferenceType documentation.
+type SpanReference struct {
+	Type     ReferenceType
+	Metadata SpanMetadata
 }
 
-// StartSpanOption instances (zero or more) may be passed to Tracer.StartSpan.
-type StartSpanOption func(*StartSpanOptions)
+// Apply satisfies the StartSpanOption interface.
+func (r SpanReference) Apply(o *StartSpanOptions) {
+	o.References = append(o.References, r)
+}
 
-// Reference returns a StartSpan() option that adds a reference from the
-// newly-started span to a referent Span (parent or otherwise).
-func Reference(t CausalReferenceType, sm SpanMetadata) StartSpanOption {
-	return func(opts *StartSpanOptions) {
-		opts.CausalReferences = append(opts.CausalReferences, CausalReference{
-			RefType:      t,
-			SpanMetadata: sm,
-		})
+// Point returns a StartSpanOption that describes a SpanReference (from the
+// Span that's about to be started to the `referent`).
+func (r ReferenceType) Point(referent SpanMetadata) SpanReference {
+	return SpanReference{
+		Type:     r,
+		Metadata: referent,
 	}
 }
 
-// StartTime returns a StartSpan() option that sets an explicit start time for
-// the newly started span.
-func StartTime(t time.Time) StartSpanOption {
-	return func(opts *StartSpanOptions) {
-		opts.StartTime = t
-	}
+type StartTime time.Time
+
+// Apply satisfies the StartSpanOption interface.
+func (t StartTime) Apply(o *StartSpanOptions) {
+	o.StartTime = time.Time(t)
 }
 
-// StartTags returns a StartSpan() option that sets an initial set of
-// Span.SetTag tags for the newly started span.
-func StartTags(t map[string]interface{}) StartSpanOption {
-	return func(opts *StartSpanOptions) {
-		opts.Tags = t
+// Tags are a generic map from an arbitrary string key to an opaque value type.
+// The underlying tracing system is responsible for interpreting and
+// serializing the values.
+type Tags map[string]interface{}
+
+// Merge incorporates the keys and values from `other` into this `Tags`
+// instance, then returns same.
+func (t Tags) Merge(other Tags) Tags {
+	for k, v := range other {
+		t[k] = v
 	}
+	return t
+}
+
+// Apply satisfies the StartSpanOption interface.
+func (t Tags) Apply(o *StartSpanOptions) {
+	o.Tags = t
 }

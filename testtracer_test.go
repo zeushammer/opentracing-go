@@ -46,20 +46,20 @@ func (n testSpan) Tracer() Tracer                                        { retur
 func (n testTracer) StartSpan(operationName string, opts ...StartSpanOption) Span {
 	sso := StartSpanOptions{}
 	for _, o := range opts {
-		o(&sso)
+		o.Apply(&sso)
 	}
 	return n.startSpanWithOptions(operationName, sso)
 }
 
 func (n testTracer) startSpanWithOptions(name string, opts StartSpanOptions) Span {
 	fakeID := nextFakeID()
-	if len(opts.CausalReferences) > 0 {
-		fakeID = opts.CausalReferences[0].SpanMetadata.(testSpanMetadata).FakeID
+	if len(opts.References) > 0 {
+		fakeID = opts.References[0].Metadata.(testSpanMetadata).FakeID
 	}
 	return testSpan{
 		OperationName: name,
 		spanMetadata: testSpanMetadata{
-			HasParent: len(opts.CausalReferences) > 0,
+			HasParent: len(opts.References) > 0,
 			FakeID:    fakeID,
 		},
 	}

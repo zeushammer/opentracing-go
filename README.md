@@ -103,6 +103,8 @@ It's always possible to create a "root" (parentless) `Span`.
 
 #### Deserializing from the wire
 
+XXX
+
 ```go
     http.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
         serverSpan, err := opentracing.GlobalTracer().Join(

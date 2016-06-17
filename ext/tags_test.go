@@ -19,8 +19,7 @@ func TestPeerTags(t *testing.T) {
 	if ext.PeerService != "peer.service" {
 		t.Fatalf("Invalid PeerService %v", ext.PeerService)
 	}
-	tracer := noopTracer{}
-	span := tracer.StartSpan("my-trace")
+	var span opentracing.Span = newNoopTagSpan()
 	ext.PeerService.Set(span, "my-service")
 	ext.PeerHostname.Set(span, "my-hostname")
 	ext.PeerHostIPv4.Set(span, uint32(127<<24|1))
@@ -40,8 +39,7 @@ func TestPeerTags(t *testing.T) {
 }
 
 func TestHTTPTags(t *testing.T) {
-	tracer := noopTracer{}
-	span := tracer.StartSpan("my-trace")
+	var span opentracing.Span = newNoopTagSpan()
 	ext.HTTPUrl.Set(span, "test.biz/uri?protocol=false")
 	ext.HTTPMethod.Set(span, "GET")
 	ext.HTTPStatusCode.Set(span, 301)
@@ -54,8 +52,7 @@ func TestHTTPTags(t *testing.T) {
 }
 
 func TestMiscTags(t *testing.T) {
-	tracer := noopTracer{}
-	span := tracer.StartSpan("my-trace")
+	var span opentracing.Span = newNoopTagSpan()
 	ext.Component.Set(span, "my-awesome-library")
 	ext.SamplingPriority.Set(span, 1)
 	span.Finish()
@@ -64,9 +61,6 @@ func TestMiscTags(t *testing.T) {
 	assertEqual(t, "my-awesome-library", rawSpan.Tags["component"])
 	assertEqual(t, uint16(1), rawSpan.Tags["sampling.priority"])
 }
-
-// noopTracer and noopSpan with span tags implemented
-type noopTracer struct{}
 
 type noopSpanMetadata struct{}
 
@@ -84,6 +78,8 @@ func (n noopSpan) SetTag(key string, value interface{}) opentracing.Span {
 	return n
 }
 
+func newNoopTagSpan() *noopSpan { return &noopSpan{make(opentracing.Tags)} }
+
 func (n noopSpan) Finish()                                                {}
 func (n noopSpan) FinishWithOptions(opts opentracing.FinishOptions)       {}
 func (n noopSpan) LogEvent(event string)                                  {}
@@ -91,19 +87,3 @@ func (n noopSpan) LogEventWithPayload(event string, payload interface{})  {}
 func (n noopSpan) Log(data opentracing.LogData)                           {}
 func (n noopSpan) SetOperationName(operationName string) opentracing.Span { return n }
 func (n noopSpan) Tracer() opentracing.Tracer                             { return nil }
-
-func (n noopTracer) StartSpan(operationName string) opentracing.Span {
-	return &noopSpan{Tags: make(opentracing.Tags)}
-}
-
-func (n noopTracer) StartSpanWithOptions(opts opentracing.StartSpanOptions) opentracing.Span {
-	return noopSpan{Tags: make(opentracing.Tags)}
-}
-
-func (n noopTracer) Inject(sp opentracing.Span, format interface{}, carrier interface{}) error {
-	panic("not implemented")
-}
-
-func (n noopTracer) Join(operationName string, format interface{}, carrier interface{}) (opentracing.Span, error) {
-	panic("not implemented")
-}

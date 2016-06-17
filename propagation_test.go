@@ -32,7 +32,7 @@ func TestHTTPHeaderInject(t *testing.T) {
 	}
 }
 
-func TestHTTPHeaderJoin(t *testing.T) {
+func TestHTTPHeaderExtract(t *testing.T) {
 	h := http.Header{}
 	h.Add("NotOT", "blah")
 	h.Add("opname", "AlsoNotOT")
