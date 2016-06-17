@@ -42,9 +42,11 @@ func StartSpanFromContext(ctx context.Context, operationName string, opts ...Sta
 
 // startSpanFromContextWithTracer is factored out for testing purposes.
 func startSpanFromContextWithTracer(ctx context.Context, tracer Tracer, operationName string, opts ...StartSpanOption) (Span, context.Context) {
-	if span := SpanFromContext(ctx); span != nil {
-		opts = append(opts, RefBlockedParent.Point(span.Metadata()))
+	var span Span
+	if parentSpan := SpanFromContext(ctx); parentSpan != nil {
+		span = tracer.StartSpan(operationName, RefBlockedParent.Point(parentSpan.Metadata()))
+	} else {
+		span = tracer.StartSpan(operationName)
 	}
-	span := tracer.StartSpan(operationName, opts...)
 	return span, ContextWithSpan(ctx, span)
 }
