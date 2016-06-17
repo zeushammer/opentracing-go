@@ -112,9 +112,10 @@ reference.
     http.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
         var serverSpan opentracing.Span
         appSpecificOperationName := ...
-		if wireMetadata, err := opentracing.GlobalTracer().Extract(
+        wireMetadata, err := opentracing.GlobalTracer().Extract(
             opentracing.TextMap,
-            opentracing.HTTPHeaderTextMapCarrier(req.Header))); err != nil {
+            opentracing.HTTPHeaderTextMapCarrier(req.Header))
+        if err != nil {
             // Optionally record something about err here
         }
         if wireMetadata != nil {
